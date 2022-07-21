@@ -33,7 +33,6 @@ public class Mailtest {
         //传入的内容
         context.setVariable("username","hello");
         //传入模版
-        System.out.println("33333");
         String content = templateEngine.process("/mail/demo",context);
         System.out.println(content);
         mailClint.MailSender("18438591696@163.com","html",content);

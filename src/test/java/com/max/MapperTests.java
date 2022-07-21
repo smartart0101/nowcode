@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringRunner;
+
 
 import java.util.Date;
 import java.util.List;
@@ -67,10 +67,11 @@ public class MapperTests {
     @Test
     public void testSelectPosts() {
         List<DiscussPost> list = discussPostMapper.selectDiscussPosts(0, 0, 10);
+        System.out.println("22222222");
         for(DiscussPost post : list) {
             System.out.println(post);
         }
-
+        System.out.println("33333333");
         int rows = discussPostMapper.selectDiscussPostRows(149);
         System.out.println(rows);
     }
