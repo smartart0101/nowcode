@@ -4,14 +4,19 @@ package com.max.service;
 import com.max.Util.CommunityConstant;
 import com.max.Util.Communityutil;
 import com.max.Util.MailClint;
+import com.max.dao.LoginTicketMapper;
 import com.max.dao.UserMapper;
+import com.max.entity.LoginTicket;
 import com.max.entity.User;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+import sun.security.krb5.internal.Ticket;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -35,6 +40,9 @@ public class UserService implements CommunityConstant {
 
     @Autowired
     private TemplateEngine templateEngine;
+
+    @Autowired
+    private LoginTicketMapper loginTicketMapper;
 
     //注入域名
     @Value("${community.path.domain}")
@@ -118,14 +126,75 @@ public class UserService implements CommunityConstant {
     // http://localhost:8080/community/activation/101/code  code是激活码
     public int activation(int userId, String code) {
         User activationuser = userMapper.selectById(userId);
-        if(activationuser.getStatus() == 1){    //Status默认为0，1代表已经激活过了
+        if (activationuser.getStatus() == 1) {    //Status默认为0，1代表已经激活过了
             return ACTIVATION_REPEAT;
-        }else if(activationuser.getActivationCode().equals(code)){  //激活码正确
-            userMapper.updateStatus(userId,1);
+        } else if (activationuser.getActivationCode().equals(code)) {  //激活码正确
+            userMapper.updateStatus(userId, 1);
             return ACTIVATION_SUCCESS;
-        }else{
+        } else {
             return ACTIVATION_FAILURE;
         }
     }  //写完这些，可以去创建登陆逻辑
+
+
+    //用户点击立即登陆按钮，这里的方法就会做出判断
+    //我的问题，判断信息是否正确，难道是数据库一点一点查的啊。一定关系到dao，
+    public Map<String, Object> login_now(String username, String password, int expiredscends) {
+        Map<String, Object> login_msg_Map = new HashMap<>();
+
+        //验证输入的用户名和密码是否为空
+        if (StringUtils.isBlank(username)) {
+            login_msg_Map.put("usernameMsg", "用户名不能为空");
+            return login_msg_Map;
+        }
+        if (StringUtils.isBlank(password)) {
+            login_msg_Map.put("passwordMsg", "密码不能为空");
+            return login_msg_Map;
+        }
+
+        //验证输入的账号，是否为注册过的账号; 首先查到该用户
+        User login_user = userMapper.selectByName(username);
+
+        if (login_user == null) {
+            login_msg_Map.put("usernameMsg", "该账号不存在");
+            return login_msg_Map;
+        }
+
+        if (login_user.getStatus() == 0) {
+            login_msg_Map.put("statusMsg", "该账号未激活");
+            return login_msg_Map;
+        }
+
+        //密码是否正确
+        password = Communityutil.MD5(password + login_user.getSalt());
+        if (!password.equals(login_user.getPassword())) {
+            login_msg_Map.put("passwordMsg", "密码不正确");
+            return login_msg_Map;
+        }
+
+        //生成登陆凭证
+        LoginTicket loginTicket = new LoginTicket();
+        loginTicket.setUserId(login_user.getId());
+        loginTicket.setTicket(Communityutil.radomuuid());
+        loginTicket.setExpired(new Date(System.currentTimeMillis() + expiredscends * 1000));
+        loginTicketMapper.InsertLoginTicket(loginTicket);
+
+        login_msg_Map.put("ticket",loginTicket.getTicket());
+        return login_msg_Map;
+    }
+
+    //退出功能
+    public void logout(String ticket){
+        loginTicketMapper.UpdateLoginStatus(ticket,1);
+    }
+
+    //select ticket from cokkie
+    public LoginTicket find_login_ticket(String ticket){
+        return loginTicketMapper.SelectLoginTicket(ticket);
+    }
+
+    public int updateHeader(int userId, String headerUrl) {
+        return userMapper.updateHeader(userId, headerUrl);
+    }
 
 }

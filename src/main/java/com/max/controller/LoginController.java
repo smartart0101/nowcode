@@ -1,17 +1,30 @@
 package com.max.controller;
 
 
+import com.google.code.kaptcha.Producer;
 import com.max.Util.CommunityConstant;
+import com.max.Util.Communityutil;
 import com.max.entity.User;
 import com.max.service.UserService;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
-import javax.jws.WebParam;
+import javax.imageio.ImageIO;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import javax.websocket.server.PathParam;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Map;
 
 
@@ -21,8 +34,16 @@ import java.util.Map;
 @Controller
 public class LoginController implements CommunityConstant {
 
+    public static final Logger logger = LoggerFactory.getLogger(LoginController.class);
+
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private Producer kaptchaproducer;
+
+    @Value("${server.servlet.context-path}")
+    private String contextPath;
 
 
     @RequestMapping(path = "/register", method = RequestMethod.GET)   //访问注册页面
@@ -68,8 +89,65 @@ public class LoginController implements CommunityConstant {
             model.addAttribute("target", "/index");
         }
         return "/site/operate-result";
-
-
     }
+
+    //该方法将创建的验证码图片发送
+    @RequestMapping(path = "/kaptchaimage", method = RequestMethod.GET)
+    public void getkapycha(HttpServletResponse response, HttpSession session) {
+        //生产验证码、这里的作用是传入文本，kaptchaproducer会将其转为图片
+        String text = kaptchaproducer.createText();
+        BufferedImage image = kaptchaproducer.createImage(text);
+        //验证码存入session、
+        session.setAttribute("kaptcha", text);
+        //图片发送给浏览器
+        response.setContentType("image/png");
+        try {
+            OutputStream outputStream = response.getOutputStream();
+            ImageIO.write(image, "png", outputStream);
+        } catch (IOException e) {
+            logger.error("响应验证码失败:" + e.getMessage());
+        }
+    }
+
+    @RequestMapping(path = "/login", method = RequestMethod.POST)
+    public String login(String username, String password, String code, boolean rememberme,
+                        Model model, HttpSession session, HttpServletResponse response) {
+        //验证码填写是否正确,没有填写，code没有，两者不等，都不行
+        //这里把session存的kaptcha,转为字符串，debug发现kaptcha为空值，
+        // 结果就很显然了，将存入session的语句，改写为正确的名称即可
+        String kaptcha = (String) session.getAttribute("kaptcha");
+
+        if (StringUtils.isBlank(kaptcha) || StringUtils.isBlank(code) || !kaptcha.equalsIgnoreCase(code)) {
+            model.addAttribute("codeMsg", "验证码出错");
+            return "/site/login";
+        }
+
+
+        //设置 ”记住我“ 的时间
+        int expiredscends = rememberme ? REMEMBER_EXPIRED_SECONDS : DEFAULT_EXPIRED_SECONDS;
+
+        //判断账号信息，直接调用Userservice 的方法
+        Map<String, Object> map = userService.login_now(username, password, expiredscends);
+        if (map.containsKey("ticket")) {   //如果map里面包含了ticket,账号注册成功了 这里除了bug
+            Cookie cookie = new Cookie("ticket", map.get("ticket").toString());
+            cookie.setPath(contextPath);
+            cookie.setMaxAge(expiredscends);
+            response.addCookie(cookie);    //这一步出异常
+            return "redirect:/index";  //登录成功，跳转到首页
+        } else {
+            model.addAttribute("usernameMsg", map.get("usernameMsg"));
+            model.addAttribute("passwordMsg", map.get("passwordMsg"));
+            return "/site/login";
+        }
+    }
+
+    @RequestMapping(path = "/logout", method = RequestMethod.GET)
+    public String logout(@CookieValue("ticket") String ticket) {
+        //改变cookie,调用service的方法
+        userService.logout(ticket);
+        return "redirect:/login";
+    }
+
+
 }
 

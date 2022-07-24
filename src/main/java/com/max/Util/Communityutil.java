@@ -13,8 +13,8 @@ public class Communityutil {
 
     //生产随机字符串
     public static String radomuuid() {
-        //使用spring自带api生产                replace方法作用：将-替换成空格（为了美观）
-        return UUID.randomUUID().toString().replace("-", " ");
+        //使用spring自带api生产                replace方法作用：将-替换成空格（为了美观）  //这里出了错误，tomcat高版本cookie不能有空格
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     //MD5加密
