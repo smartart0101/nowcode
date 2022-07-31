@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
@@ -61,7 +62,7 @@ public class LoginController implements CommunityConstant {
     public String register_msg(Model model, User user) {
         Map<String, Object> register_msg_map = userService.RegisterMsg(user);
         if (register_msg_map == null || register_msg_map.isEmpty()) {    //如果没有错误消息，发送邮件提醒
-            //
+
             model.addAttribute("msg", "注册成功，请查看邮箱并激活账号");
             model.addAttribute("traget", "/index");   //注册成功后会跳转到首页，激活账号
             return "/site/operate-result";   //最后会访问一个页面，显示激活成功
@@ -76,7 +77,7 @@ public class LoginController implements CommunityConstant {
     // http://localhost:8080/community/activation/101/code
 
     @RequestMapping(path = "/activation/{userId}/{code}", method = RequestMethod.GET)
-    public String activationMsg(Model model, @PathParam("userId") int userId, @PathParam("code") String code) {
+    public String activationMsg(Model model, @PathVariable("userId") int userId, @PathVariable("code") String code) {
         int activation_num = userService.activation(userId, code);
         if (activation_num == ACTIVATION_SUCCESS) {
             model.addAttribute("msg", "激活成功,您的账号已经可以正常使用了!");

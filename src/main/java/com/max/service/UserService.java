@@ -12,11 +12,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
-import sun.security.krb5.internal.Ticket;
+
 
 import java.util.Date;
 import java.util.HashMap;
@@ -56,7 +54,7 @@ public class UserService implements CommunityConstant {
         return userMapper.selectById(id);
     }
 
-    //构建一个方法，它返回注册时需要回馈给用户的各种消息，ps:”名字不能为空“...
+    //构建一个方法，注册时需要回馈给用户的各种消息，ps:”名字不能为空“...
     //这里按照教程做，但是是否应该把判断的方法抽离到一个类里？
     public Map<String, Object> RegisterMsg(User user) {
         Map<String, Object> register_msg_Map = new HashMap<>();
@@ -100,7 +98,7 @@ public class UserService implements CommunityConstant {
 
         //各种信息验证后，可以注册新用户了
         user.setSalt(Communityutil.radomuuid().substring(0, 5));  //0-5位的salt,用于密码加密
-        user.setPassword(Communityutil.MD5(user.getPassword()) + user.getSalt()); //密码+salt
+        user.setPassword(Communityutil.MD5(user.getPassword() + user.getSalt())); //密码+salt
         user.setType(0);
         user.setStatus(0);  //设置账号默认状态：是否是大V
         user.setActivationCode(Communityutil.radomuuid());  //随机激活码
@@ -113,11 +111,13 @@ public class UserService implements CommunityConstant {
         Context context = new Context();
         context.setVariable("user_email", user.getEmail());
         // http://localhost:8080/community/activation/101/code
-        String url = contextpath + domain_name + "/activation" + user.getActivationCode();
+        //String url = contextpath + domain_name + "/activation" + user.getActivationCode();
+        //这里除了bug, 新用户不能注册，url不对
+
+        String url = domain_name + contextpath + "/activation/" + user.getId() + "/" + user.getActivationCode();
         context.setVariable("url", url);   //到此context拼好了两个关键内容
         String content = templateEngine.process("/mail/activation", context);
         mailClint.MailSender(user.getEmail(), "激活邮件", content);
-
 
         return register_msg_Map;
     }
@@ -139,7 +139,7 @@ public class UserService implements CommunityConstant {
 
     //用户点击立即登陆按钮，这里的方法就会做出判断
     //我的问题，判断信息是否正确，难道是数据库一点一点查的啊。一定关系到dao，
-    public Map<String, Object> login_now(String username, String password, int expiredscends) {
+    public Map<String, Object> login_now(String username, String password, long expiredscends) {
         Map<String, Object> login_msg_Map = new HashMap<>();
 
         //验证输入的用户名和密码是否为空
@@ -166,8 +166,9 @@ public class UserService implements CommunityConstant {
         }
 
         //密码是否正确
+        //password = Communityutil.MD5(password + login_user.getSalt());
         password = Communityutil.MD5(password + login_user.getSalt());
-        if (!password.equals(login_user.getPassword())) {
+        if (!login_user.getPassword().equals(password)) {
             login_msg_Map.put("passwordMsg", "密码不正确");
             return login_msg_Map;
         }
@@ -193,6 +194,8 @@ public class UserService implements CommunityConstant {
         return loginTicketMapper.SelectLoginTicket(ticket);
     }
 
+
+    //上传头像的方法
     public int updateHeader(int userId, String headerUrl) {
         return userMapper.updateHeader(userId, headerUrl);
     }

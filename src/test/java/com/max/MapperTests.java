@@ -92,7 +92,7 @@ public class MapperTests {
         loginTicketMapper.InsertLoginTicket(loginTicket);
     }
 
-    @Test
+    @Test //测试及方法一次性的，否则会出现数据库重复·数据
     public void testSelectLoginTicket() {
         LoginTicket loginTicket = loginTicketMapper.SelectLoginTicket("abc");
         System.out.println(loginTicket);
