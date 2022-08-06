@@ -1,10 +1,12 @@
 package com.max.service;
 
 
+import com.max.Util.SensitiveUtil;
 import com.max.dao.DiscussPostMapper;
 import com.max.entity.DiscussPost;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.util.List;
 
@@ -16,6 +18,9 @@ public class DiscussPostService {
 
     @Autowired
     private DiscussPostMapper discussPostMapper;
+
+    @Autowired
+    private SensitiveUtil sensitiveUtil;
 
     public List<DiscussPost> findDiscussPosts(int userId, int offset, int limit) {
         //System.out.println("11111111");
@@ -33,5 +38,29 @@ public class DiscussPostService {
     public int findDiscussRows(int userId) {
         //return findDiscussRows(userId);  //这个语法出现重大错误。导致了栈溢出
         return discussPostMapper.selectDiscussPostRows(userId);
+    }
+
+
+    //添加帖子的方法，不过要做进一步处理：转义字符、敏感词过滤
+    public int AddDiscussPost(DiscussPost discussPost){
+        if(discussPost == null){
+            throw new IllegalArgumentException("参数不能为空");
+        }
+
+        //转义特殊字符串，比如html语法中的<>.不能让他破环浏览器页面
+        //只有 Title Content 需要这样处理（标题，内容）
+        discussPost.setTitle(HtmlUtils.htmlEscape(discussPost.getTitle()));
+        discussPost.setContent(HtmlUtils.htmlEscape(discussPost.getContent()));
+        //过虑敏感词
+        discussPost.setTitle(sensitiveUtil.filter(discussPost.getTitle()));
+        discussPost.setContent(sensitiveUtil.filter(discussPost.getContent()));
+
+        //service 做一些持久层的操作，得到的结果，作为参数传给dao层
+        return discussPostMapper.InsertDiscussPost(discussPost);
+    }
+
+    //查询帖子的方法
+    public DiscussPost FindDiscussPost(int id){
+        return discussPostMapper.selectDiscussPost(id);
     }
 }
