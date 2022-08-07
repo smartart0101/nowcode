@@ -42,8 +42,8 @@ public class DiscussPostService {
 
 
     //添加帖子的方法，不过要做进一步处理：转义字符、敏感词过滤
-    public int AddDiscussPost(DiscussPost discussPost){
-        if(discussPost == null){
+    public int AddDiscussPost(DiscussPost discussPost) {
+        if (discussPost == null) {
             throw new IllegalArgumentException("参数不能为空");
         }
 
@@ -60,7 +60,12 @@ public class DiscussPostService {
     }
 
     //查询帖子的方法
-    public DiscussPost FindDiscussPost(int id){
+    public DiscussPost FindDiscussPost(int id) {
         return discussPostMapper.selectDiscussPost(id);
+    }
+
+    //查询更改帖子详情（谁发的，有几条评论）的方法
+    public int UpdateCommentCount(int id, int commentCount) {
+        return discussPostMapper.UpdateCommentCount(id, commentCount);
     }
 }
