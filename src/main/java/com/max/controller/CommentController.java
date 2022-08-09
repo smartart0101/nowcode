@@ -27,7 +27,7 @@ public class CommentController {
 
     @RequestMapping(path = "/add/{discusspostId}",method = RequestMethod.POST)
     public String AddComment(@PathVariable("discusspostId") int discusspostId, Comment comment){
-
+        //新加的帖子有三个属性需要设置
         comment.setUserId(hostHolder.getUser().getId());
         comment.setStatus(0);
         comment.setCreateTime(new Date());
