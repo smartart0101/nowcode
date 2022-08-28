@@ -1,10 +1,12 @@
 package com.max.controller;
 
 
+import com.max.Util.CommunityConstant;
 import com.max.entity.DiscussPost;
 import com.max.entity.Page;
 import com.max.entity.User;
 import com.max.service.DiscussPostService;
+import com.max.service.RedisLikeService;
 import com.max.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -21,13 +23,16 @@ import java.util.Map;
  * 调用service,得到 model ,和浏览器交互
  */
 @Controller
-public class HomeController {
+public class HomeController implements CommunityConstant {
 
     @Autowired
     private DiscussPostService discussPostService;
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private RedisLikeService redisLikeService;
 
     /**
      * 定义一个处理请求的方法、该方法把视图处理后，为了处理方便，直接返回一个访问路径，也就是字符串
@@ -62,11 +67,21 @@ public class HomeController {
                 //把得到的user放入map
                 map.put("user", user);
                 //map放入discussPosts
+
+                // 页面要显示用户的言论收到了多少赞，就要得到数据并添加进 map
+                long likeCount = redisLikeService.findLikenum(ENTITY_TYPE_POST, post.getId());
+                map.put("likeCount", likeCount);
+
                 discussPosts.add(map);
             }
         }
         //得到的集合放入模版
         model.addAttribute("discussPosts", discussPosts);
         return "/index";
+    }
+
+    @RequestMapping(path = "/error", method = RequestMethod.GET)
+    public String getErrorPage() {
+        return "/error/500";
     }
 }

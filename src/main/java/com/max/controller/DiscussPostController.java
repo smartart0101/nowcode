@@ -9,6 +9,7 @@ import com.max.entity.Page;
 import com.max.entity.User;
 import com.max.service.CommentService;
 import com.max.service.DiscussPostService;
+import com.max.service.RedisLikeService;
 import com.max.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -40,6 +41,9 @@ public class DiscussPostController implements CommunityConstant {
     @Autowired
     private CommentService commentService;
 
+    @Autowired
+    private RedisLikeService redisLikeService;
+
     //添加帖子. 判断依据是此时登陆用户的各种信息
     @RequestMapping(path = "/add", method = RequestMethod.POST)
     @ResponseBody      //return String
@@ -64,14 +68,22 @@ public class DiscussPostController implements CommunityConstant {
     @RequestMapping(path = "/detail/{discussPostId}", method = RequestMethod.GET)
     public String getDiscussPost(@PathVariable("discussPostId") int discussPostId, Model model, Page page) {
 
-        //根据 id 查询到相关的 post ,再注入到 model 中
+        //帖子：根据 id 查询到相关的 post ,再注入到 model 中
         DiscussPost discussPost = discussPostService.FindDiscussPost(discussPostId);
         model.addAttribute("discussPost", discussPost);
 
-        //要查用户的信息，一种是关联查询，一种是在 controller 写方法。
+        //作者：要查用户的信息，一种是关联查询，一种是在 controller 写方法。
         // 选后者，带来的性能的一点损失，后期 redis 来弥补
         User user = userService.findUserById(discussPost.getUserId());
         model.addAttribute("user", user);
+
+        //点赞数量
+        long likeCount = redisLikeService.findLikenum(ENTITY_TYPE_POST, discussPostId);
+        model.addAttribute("likeCount",likeCount);
+        //点赞状态
+        int likeStatus = hostHolder.getUser() == null ? 0:
+                redisLikeService.findLikeStatus(hostHolder.getUser().getId(), ENTITY_TYPE_POST, discussPostId);
+        model.addAttribute("likeStatus", likeStatus);
 
         //下面是处理评论相关，都属于页面
 
@@ -102,6 +114,14 @@ public class DiscussPostController implements CommunityConstant {
                 //作者
                 commentvo.put("user", userService.findUserById(comment.getUserId()));
 
+                //点赞数量
+                likeCount = redisLikeService.findLikenum(ENTITY_TYPE_COMMENT, comment.getId());
+                commentvo.put("likeCount",likeCount);
+                //点赞状态
+                likeStatus = hostHolder.getUser() == null ? 0:
+                        redisLikeService.findLikeStatus(hostHolder.getUser().getId(), ENTITY_TYPE_COMMENT, comment.getId());
+                commentvo.put("likeStatus", likeStatus);
+
                 //不仅帖子有评论，评论也会有评论，叫回复
                 //回复列表
                 List<Comment> replyList = commentService.FindCommentsByEntity(
@@ -118,6 +138,13 @@ public class DiscussPostController implements CommunityConstant {
                         //回复对象
                         User target_user = reply.getTargetId() == 0 ? null : userService.findUserById(reply.getTargetId());
                         replyvo.put("target_user", target_user);
+                        //点赞数量
+                        likeCount = redisLikeService.findLikenum(ENTITY_TYPE_COMMENT, reply.getId());
+                        replyvo.put("likeCount",likeCount);
+                        //点赞状态
+                        likeStatus = hostHolder.getUser() == null ? 0:
+                                redisLikeService.findLikeStatus(hostHolder.getUser().getId(), ENTITY_TYPE_COMMENT, reply.getId());
+                        replyvo.put("likeStatus", likeStatus);
 
                         //添加进集合
                         replyVoList.add(replyvo);
