@@ -27,22 +27,18 @@ public class LikeController {
 
     @RequestMapping(path = "/like", method = RequestMethod.POST)
     @ResponseBody
-    public String Like(int entityType, int entityId) {
+    public String Like(int entityType, int entityId, int entityUserId) {
         //当前登陆用户
         User user = hostHolder.getUser();
 
-//        if(user == null ){
-//            return "";
-//        }
-
         //点赞
-        redisLikeService.Liketosth(user.getId(), entityType, entityId);
+        redisLikeService.like(user.getId(), entityType, entityId, entityUserId);
         //查赞的数量
         long LikeCount = redisLikeService.findLikenum(entityType, entityId);
         //用户点赞的状态 1:点过了  0 ：没点过
         int LikeStatus = redisLikeService.findLikeStatus(user.getId(), entityType, entityId);
 
-        //添加到 map
+        //添加到 map。这不是个人主页显示，而是主页和详情页
         Map<String, Object> likeMap = new HashMap<>();
         likeMap.put("likeCount", LikeCount);
         likeMap.put("likeStatus", LikeStatus);

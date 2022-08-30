@@ -4,6 +4,7 @@ import com.max.Util.Communityutil;
 import com.max.Util.HostHolder;
 import com.max.annotation.NoLogin;
 import com.max.entity.User;
+import com.max.service.RedisLikeService;
 import com.max.service.UserService;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -43,6 +44,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private RedisLikeService redisLikeService;
 
     public static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
@@ -117,5 +121,23 @@ public class UserController {
         } catch (IOException e) {
             logger.error("获取头像失败" + e.getMessage());
         }
+    }
+
+
+    //用户主页，点击后根据Id 查询该用户收到了多少赞
+    @RequestMapping(path = "/profile/{userId}", method = RequestMethod.GET)
+    public String getProfilePage(@PathVariable("userId") int userId, Model model) {
+        User user = userService.findUserById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        //用户填入model
+        model.addAttribute("user", user);
+        //点赞数量
+        int userLikeCount = redisLikeService.findUserLikeCount(userId);
+        model.addAttribute("userLikeCount", userLikeCount);
+
+        return "/site/profile";
     }
 }

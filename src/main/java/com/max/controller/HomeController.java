@@ -68,7 +68,7 @@ public class HomeController implements CommunityConstant {
                 map.put("user", user);
                 //map放入discussPosts
 
-                // 页面要显示用户的言论收到了多少赞，就要得到数据并添加进 map
+                // 页面要显示用户的言论收到了多少赞，要得到数据并添加进 map
                 long likeCount = redisLikeService.findLikenum(ENTITY_TYPE_POST, post.getId());
                 map.put("likeCount", likeCount);
 
