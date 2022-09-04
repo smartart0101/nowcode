@@ -1,9 +1,11 @@
 package com.max.controller;
 
+import com.max.Util.CommunityConstant;
 import com.max.Util.Communityutil;
 import com.max.Util.HostHolder;
 import com.max.annotation.NoLogin;
 import com.max.entity.User;
+import com.max.service.FollowService;
 import com.max.service.RedisLikeService;
 import com.max.service.UserService;
 import org.apache.commons.lang3.StringUtils;
@@ -29,7 +31,7 @@ import java.io.IOException;
  */
 @Controller
 @RequestMapping("/user")
-public class UserController {
+public class UserController implements CommunityConstant {
     @Value("${community.path.upload}")
     private String uploadpath;
 
@@ -47,6 +49,9 @@ public class UserController {
 
     @Autowired
     private RedisLikeService redisLikeService;
+
+    @Autowired
+    private FollowService followService;
 
     public static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
@@ -136,7 +141,21 @@ public class UserController {
         model.addAttribute("user", user);
         //点赞数量
         int userLikeCount = redisLikeService.findUserLikeCount(userId);
-        model.addAttribute("userLikeCount", userLikeCount);
+        model.addAttribute("likeCount", userLikeCount);
+
+        //关注数量
+        long followeeCount = followService.findFolloweeCount(userId, ENTITY_TYPE_USER);
+        model.addAttribute("followeeCount", followeeCount);
+        //粉丝数量
+        long followerCount = followService.findFollowerCount(ENTITY_TYPE_USER, userId);
+        model.addAttribute("followerCount", followerCount);
+        //是否已关注用户
+        boolean hasFollowed = false;
+        User user1 = hostHolder.getUser();
+        if (user1 != null) {
+            hasFollowed = followService.hasFollowed(hostHolder.getUser().getId(), ENTITY_TYPE_USER, userId);
+        }
+        model.addAttribute("hasFollowed", hasFollowed);
 
         return "/site/profile";
     }

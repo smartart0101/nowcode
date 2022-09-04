@@ -4,6 +4,7 @@ package com.max.controller;
 import com.google.code.kaptcha.Producer;
 import com.max.Util.CommunityConstant;
 import com.max.Util.Communityutil;
+import com.max.Util.RedisKeyUtil;
 import com.max.entity.User;
 import com.max.service.UserService;
 import org.apache.commons.lang3.StringUtils;
@@ -11,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -27,6 +29,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -45,6 +48,9 @@ public class LoginController implements CommunityConstant {
 
     @Value("${server.servlet.context-path}")
     private String contextPath;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
 
     @RequestMapping(path = "/register", method = RequestMethod.GET)   //访问注册页面
@@ -94,12 +100,25 @@ public class LoginController implements CommunityConstant {
 
     //该方法将创建的验证码图片发送
     @RequestMapping(path = "/kaptchaimage", method = RequestMethod.GET)
-    public void getkapycha(HttpServletResponse response, HttpSession session) {
+    public void getkapycha(HttpServletResponse response) {
         //生产验证码、这里的作用是传入文本，kaptchaproducer会将其转为图片
         String text = kaptchaproducer.createText();
         BufferedImage image = kaptchaproducer.createImage(text);
+
         //验证码存入session、
-        session.setAttribute("kaptcha", text);
+        //session.setAttribute("kaptcha", text);
+
+        //上面的方案不用了，验证码存入redis
+        //明确谁在校验验证码，由于此时用户没有登陆，所以给用户发一段随机字符串，存入cookie,作为身份的标识
+        String kaptchaOwner = Communityutil.radomuuid();
+        Cookie cookie = new Cookie("kaptchaOwner", kaptchaOwner);
+        cookie.setMaxAge(60);
+        cookie.setPath(contextPath);
+        response.addCookie(cookie);
+        //验证码存入redis,60秒过期
+        String kaptchaKey = RedisKeyUtil.getKaptchaKey(kaptchaOwner);
+        redisTemplate.opsForValue().set(kaptchaKey, text, 60, TimeUnit.SECONDS);
+
         //图片发送给浏览器
         response.setContentType("image/png");
         try {
@@ -112,11 +131,18 @@ public class LoginController implements CommunityConstant {
 
     @RequestMapping(path = "/login", method = RequestMethod.POST)
     public String login(String username, String password, String code, boolean rememberme,
-                        Model model, HttpSession session, HttpServletResponse response) {
+                        Model model, HttpServletResponse response, @CookieValue("kaptchaOwner") String kaptchaOwner) {
         //验证码填写是否正确,没有填写，code没有，两者不等，都不行
         //这里把session存的kaptcha,转为字符串，debug发现kaptcha为空值，
         // 结果就很显然了，将存入session的语句，改写为正确的名称即可
-        String kaptcha = (String) session.getAttribute("kaptcha");
+        //String kaptcha = (String) session.getAttribute("kaptcha");
+
+        //方法重写，不从session 拿到kaptcha，而是 从redis中取出
+        String kaptcha = null;
+        if (StringUtils.isBlank(kaptcha)) {
+            String kaptchaKey = RedisKeyUtil.getKaptchaKey(kaptchaOwner);
+            kaptcha = (String) redisTemplate.opsForValue().get(kaptchaKey);
+        }
 
         if (StringUtils.isBlank(kaptcha) || StringUtils.isBlank(code) || !kaptcha.equalsIgnoreCase(code)) {
             model.addAttribute("codeMsg", "验证码出错");

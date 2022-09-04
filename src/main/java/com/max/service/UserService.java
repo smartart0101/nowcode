@@ -4,6 +4,7 @@ package com.max.service;
 import com.max.Util.CommunityConstant;
 import com.max.Util.Communityutil;
 import com.max.Util.MailClint;
+import com.max.Util.RedisKeyUtil;
 import com.max.dao.LoginTicketMapper;
 import com.max.dao.UserMapper;
 import com.max.entity.LoginTicket;
@@ -11,6 +12,7 @@ import com.max.entity.User;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -22,6 +24,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 1、解决 DiscussPostService 中提到的问题
@@ -41,8 +44,11 @@ public class UserService implements CommunityConstant {
     @Autowired
     private TemplateEngine templateEngine;
 
+//    @Autowired
+//    private LoginTicketMapper loginTicketMapper;
+
     @Autowired
-    private LoginTicketMapper loginTicketMapper;
+    private RedisTemplate redisTemplate;
 
     //注入域名
     @Value("${community.path.domain}")
@@ -53,7 +59,12 @@ public class UserService implements CommunityConstant {
     private String contextpath;
 
     public User findUserById(int id) {
-        return userMapper.selectById(id);
+        //return userMapper.selectById(id);
+        User user = getCacheUser(id);
+        if (user == null) {
+            user = initCacheUser(id);
+        }
+        return user;
     }
 
     //构建一个方法，注册时需要回馈给用户的各种消息，ps:”名字不能为空“...
@@ -132,6 +143,7 @@ public class UserService implements CommunityConstant {
             return ACTIVATION_REPEAT;
         } else if (activationuser.getActivationCode().equals(code)) {  //激活码正确
             userMapper.updateStatus(userId, 1);
+            clearCacheUser(userId);
             return ACTIVATION_SUCCESS;
         } else {
             return ACTIVATION_FAILURE;
@@ -180,32 +192,70 @@ public class UserService implements CommunityConstant {
         loginTicket.setUserId(login_user.getId());
         loginTicket.setTicket(Communityutil.radomuuid());
         loginTicket.setExpired(new Date(System.currentTimeMillis() + expiredscends * 1000));
-        loginTicketMapper.InsertLoginTicket(loginTicket);
+        //loginTicketMapper.InsertLoginTicket(loginTicket);
 
-        login_msg_Map.put("ticket",loginTicket.getTicket());
+        //存入 redis
+        String ticketKey = RedisKeyUtil.getTicketKey(loginTicket.getTicket());
+        redisTemplate.opsForValue().set(ticketKey, loginTicket);
+
+        login_msg_Map.put("ticket", loginTicket.getTicket());
         return login_msg_Map;
     }
 
-    //退出功能
-    public void logout(String ticket){
-        loginTicketMapper.UpdateLoginStatus(ticket,1);
+    //退出功能。本质就是修改用户的的登录状态
+    public void logout(String ticket) {
+        //loginTicketMapper.UpdateLoginStatus(ticket,1);
+        String ticketKey = RedisKeyUtil.getTicketKey(ticket);
+        LoginTicket loginTicket = (LoginTicket) redisTemplate.opsForValue().get(ticketKey);
+        loginTicket.setStatus(1);
+        redisTemplate.opsForValue().set(ticketKey, loginTicket);
+
     }
 
     //select ticket from cokkie
-    public LoginTicket find_login_ticket(String ticket){
-        return loginTicketMapper.SelectLoginTicket(ticket);
+    public LoginTicket find_login_ticket(String ticket) {
+        //return loginTicketMapper.SelectLoginTicket(ticket);
+        String ticketKey = RedisKeyUtil.getTicketKey(ticket);
+        return (LoginTicket) redisTemplate.opsForValue().get(ticketKey);
     }
 
 
     //上传头像的方法
     public int updateHeader(int userId, String headerUrl) {
-        return userMapper.updateHeader(userId, headerUrl);
+        //return userMapper.updateHeader(userId, headerUrl);
+        int rows = userMapper.updateHeader(userId, headerUrl);
+        if (rows != 0) {
+            clearCacheUser(userId);
+        }
+        return rows;
     }
 
     //根据名字查用户
-    public User FindUserByName(String username){
+    public User FindUserByName(String username) {
         return userMapper.selectByName(username);
     }
 
+    //将用户信息存入redis后，想要查，就直接访问内存，而不是mysql数据库。跟CPU得cache机制一样
+    //所以将访问时的动作规定好
+
+    //1.有先从缓存中取值
+    private User getCacheUser(int userId) {
+        String userKey = RedisKeyUtil.getUserKey(userId);
+        return (User) redisTemplate.opsForValue().get(userKey);
+    }
+
+    //2.缓存中没有对应的值时，要初始化数据
+    private User initCacheUser(int userId) {
+        User user = userMapper.selectById(userId);
+        String userKey = RedisKeyUtil.getUserKey(userId);
+        redisTemplate.opsForValue().set(userKey, user, 3600, TimeUnit.SECONDS);
+        return user;
+    }
+
+    //3.数据变更时清除缓存
+    private void clearCacheUser(int userId) {
+        String userKey = RedisKeyUtil.getUserKey(userId);
+        redisTemplate.delete(userKey);
+    }
 
 }

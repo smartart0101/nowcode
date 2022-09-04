@@ -6,9 +6,11 @@ import org.apache.ibatis.annotations.*;
 /**
  * 写完后，新创建测试用例，验证sql语句是否正确
  * 然后到service里面继续写
+ * 后期不用从 MySQL 数据库查，直接从 redis 查
  */
 
 @Mapper
+@Deprecated
 public interface LoginTicketMapper {
 
     @Insert({
